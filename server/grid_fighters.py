@@ -103,6 +103,7 @@ class GridFighters():
         #Checks if the arguments for each move is valid
         if isinstance(v, GroundMove) and (not v.valid_path(self.grid, self.all_units, x, y) or v.len() < 0 or v.len() > 1):
             print('ERROR: Invalid path for unit {}'.format(k))
+            print(f'({x}, {y})')
             return False
         elif isinstance(v, AttackMove) and (self.get_matching_unit(x, y, v) is None or v.len() < 0 or v.len() > 1):
             print('ERROR: Unit {} cannot attack there'.format(k))

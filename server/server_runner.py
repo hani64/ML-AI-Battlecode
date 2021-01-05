@@ -22,7 +22,7 @@ sock = socket.socket()
 host = socket.gethostname()
 sock.bind((host, args.port))
 
-sock.settimeout(7)
+sock.settimeout(70)
 sock.listen(2)
 
 print('Waiting for client 1...')
@@ -38,7 +38,8 @@ if not args.verbose:
 p2 = ClientConnection(conn2, 'p2', args.verbose)
 
 #Picks a random map from the maps folder and creates the game
-file_name = 'maps/{}'.format(random.choice(os.listdir('maps')))
+# file_name = 'maps/{}'.format(random.choice(os.listdir('maps')))
+file_name = f'maps/fourth.map'
 
 game = GridFighters(p1, p2, open(file_name, 'r'))
 
