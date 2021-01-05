@@ -29,9 +29,9 @@ class GridPlayer:
             if role == "miner":
                 moves.append(self.miner(unit, enemy_units, game_map))
             elif role == "bodyguard":
-                pass
+                moves.append(self.bodyguard())
             elif role == "guardian":
-                pass
+                moves.append(self.guardian())
 
         if not moves:
             return self.roles
@@ -57,7 +57,7 @@ class GridPlayer:
             if i[0].id == unit.id:
                 return i[1]
 
-    def set_data(self, unit: Unit, data: str):
+    def set_data(self, unit: Unit, data):
         for i in self.roles:
             if i[0].id == unit.id:
                 i[2] = data
@@ -75,7 +75,8 @@ class GridPlayer:
 
         for node in game_map.find_all_resources():
             if node not in self.claimed_nodes.values():
-                new_distance = coordinate_distance(unit.position(), node)
+                new_distance = coordinate_distance(unit.position(), node,
+                                                   game_map)
                 if new_distance < distance:
                     closest_node = node
                     distance = new_distance
@@ -102,9 +103,26 @@ class GridPlayer:
         for unit in remove_claims:
             del self.claimed_nodes[unit]
 
+    def set_vip(self, unit: Unit, your_units: Units):
+        workers = your_units.get_all_unit_of_type("worker")
+        first_single = None
+
+        for worker in workers:
+            if self.get_data(worker) == 0:
+                self.set_data(worker, 1)
+                self.set_data(unit, worker)
+                return
+            elif self.get_data(worker) == 1 and first_single is None:
+                first_single = worker
+
+        if first_single is None:
+            return
+        self.set_data(first_single, 2)
+        self.set_data(unit, first_single)
+
     def miner(self, unit: Unit, enemy_units: Units, game_map: Map) -> \
             Optional[Move]:
-        closest, distance = get_closest_enemy_melee(unit, enemy_units)
+        closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map)
         if distance == 1:
             # run away
             direction_to = unit.direction_to(closest.position())
@@ -125,15 +143,18 @@ class GridPlayer:
             if self.claimed_nodes[unit.id] == unit.position():
                 return unit.mine()
             else:
-                return move_towards(unit, self.claimed_nodes[unit.id], game_map)
+                path = game_map.bfs(unit.position(),
+                                    self.claimed_nodes[unit.id])
+                return unit.move_towards(path[1])
 
 
-def get_closest_enemy_melee(unit: Unit, enemy_units: Units) -> (Unit, int):
+def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (Unit, int):
     closest = None
     distance = 9999
 
     for enemy in enemy_units.get_all_unit_of_type("melee"):
-        new_distance = coordinate_distance(unit.position(), enemy.position())
+        new_distance = coordinate_distance(unit.position(), enemy.position(),
+                                           game_map)
         if new_distance < distance:
             closest = enemy
             distance = new_distance
@@ -141,8 +162,8 @@ def get_closest_enemy_melee(unit: Unit, enemy_units: Units) -> (Unit, int):
     return closest, distance
 
 
-def coordinate_distance(start: (int, int), end: (int, int)):
-    return abs(start[0] - end[0]) + abs(start[1] - end[1])
+def coordinate_distance(start: (int, int), end: (int, int), game_map):
+    return len(game_map.bfs(start, end))
 
 
 def opposite_direction(direction: str) -> str:
