@@ -132,7 +132,10 @@ class GridPlayer:
               enemy_units: Units, resources: int, turns_left: int) -> \
             Optional[Move]:
 
-        closest = unit.nearby_enemies_by_distance(enemy_units)[0]
+        if len(unit.nearby_enemies_by_distance(enemy_units)) > 0:
+            closest = unit.nearby_enemies_by_distance(enemy_units)[0]
+        else:
+            closest = (None, 9999)
 
         if closest[1] == 1:
             # run away
@@ -165,7 +168,10 @@ class GridPlayer:
             Optional[Move]:
 
         unit_data = self.get_role_data(unit)
-        closest = unit.nearby_enemies_by_distance(enemy_units)[0]
+        if len(unit.nearby_enemies_by_distance(enemy_units)) > 0:
+            closest = unit.nearby_enemies_by_distance(enemy_units)[0]
+        else:
+            closest = (None, 9999)
 
         if closest[1] == 1:
             # attack the unit
@@ -186,7 +192,7 @@ class GridPlayer:
             # move towards the friendly worker stored in this unit's data
             # if the specified unit does not exist, switch to the closest
             # friendly worker unit with less than 2 bodyguards
-            if unit_data.id not in your_units.get_all_unit_ids():
+            if unit_data and unit_data.id not in your_units.get_all_unit_ids():
                 for other_id in unit.nearby_enemies_by_distance(your_units):
                     other_unit = your_units.get_unit(other_id[0])
                     if other_unit.type == "worker":
@@ -196,7 +202,7 @@ class GridPlayer:
                             self.set_role_data(other_unit, other_data + 1)
 
             end = self.get_role_data(unit).position()
-            return unit.move_towards(game_map.bfs(unit.position(), end))
+            return unit.move_towards(game_map.bfs(unit.position(), end)[0])
 
     def grenadier(self, unit: Unit, game_map: Map, your_units: Units,
                   enemy_units: Units, resources: int, turns_left: int) -> \
@@ -213,7 +219,10 @@ class GridPlayer:
             Optional[Move]:
 
         unit_data = self.get_role_data(unit)
-        closest = unit.nearby_enemies_by_distance(enemy_units)[0]
+        if len(unit.nearby_enemies_by_distance(enemy_units)) > 0:
+            closest = unit.nearby_enemies_by_distance(enemy_units)[0]
+        else:
+            closest = (None, 9999)
 
         if closest[1] == 1:
             enemy_unit = enemy_units.get_unit(closest[0])
@@ -228,7 +237,7 @@ class GridPlayer:
             enemy_id = unit.nearby_enemies_by_distance(enemy_units)[0]
             enemy_unit = enemy_units.get_unit(enemy_id[0])
             end = enemy_unit.position()
-            return unit.move_towards(game_map.bfs(unit.position(), end))
+            return unit.move_towards(game_map.bfs(unit.position(), end)[0])
         else:
             # switch role to bodyguard
             self.set_unit_role(unit, "bodyguard")
