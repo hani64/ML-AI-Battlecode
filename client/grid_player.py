@@ -1,54 +1,10 @@
 from typing import List, Optional, Dict
 from helper_classes import *
 
-REVERSE_DIR = {"UP": "DOWN", "DOWN": "UP", "RIGHT": "LEFT", "LEFT": "RIGHT"}
-claimed_nodes = {}
-
 
 class GridPlayer:
-
     roles = []
-
-    """
-    This list contains one element for each friendly unit in play.
-    The element corresponding to any given friendly unit is a list:
-    [this_unit, role, other_unit]
-
-    this_unit: a Unit object corresponding to the given friendly unit
-    role: a string representing this unit's role. Depending on what the unit's
-          role is, it will use different behavior when determining its move.
-    data: an optional argument corresponding to additional info about this unit.
-          if this argument is not required for a given role, it will be None.
-
-
-    Unit Roles:
-
-    miner - Seeks the nearest unoccupied mining node and mines from it.
-            This unit will not move into the range of an enemy melee unit.
-
-    bodyguard - Attempts to stay ahead of the specified miner unit by predicting
-                its movement. If an enemy unit is detected nearby, or if the
-                miner unit has reached its mining destination, this unit will
-                switch to a different role based on various cases.
-
-    grenadier - Stuns the specified enemy unit, then switches
-                its role back to bodyguard.
-
-    sprinter - Must be used in conjunction with a grenadier. Moves into melee
-               range of the specified enemy unit, then switches its role to
-               guardian.
-
-    guardian - When an enemy unit is detected in vision of the specified
-               miner unit, this unit will move in front of the miner unit to
-               protect it. If an enemy unit moves into melee range of this
-               unit, kill it
-
-    duplicator - Stays in a safe location and may generate new units over
-                 time based on various parameters including remaining turns,
-                 resource count, and unit numbers.
-
-    berserker - Fuck it, just go on a killing spree
-    """
+    claimed_nodes = {}
 
     def __init__(self):
         self.foo = True
@@ -56,190 +12,169 @@ class GridPlayer:
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
 
-        self.remove_dead_units(your_units)
-        game_data = (game_map, your_units, enemy_units, resources, turns_left)
+        print("test")
+
+        # self.remove_dead_units(your_units)
+
+        if not self.roles:
+            self.init_roles(your_units)
+
         moves = []
 
-        if turns_left == 100:
-            self.init_roles(*game_data)
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
-            role = self.get_unit_role(unit)
-
-            if role == "":
-                self.determine_role(unit, *game_data)
-
-            move = None
+            role = self.get_role(unit)
+            data = self.get_data(unit)
 
             if role == "miner":
-                move = self.miner(unit, *game_data)
+                moves.append(self.miner(unit, enemy_units, game_map))
             elif role == "bodyguard":
-                move = self.bodyguard(unit, *game_data)
+                moves.append(self.bodyguard())
             elif role == "guardian":
-                move = self.guardian(unit, *game_data)
+                moves.append(self.guardian())
 
-            if move is not None:
-                moves.append(move)
+        if not moves:
+            return self.roles
 
         return moves
 
-    def init_roles(self, game_map: Map, your_units: Units, enemy_units: Units,
-                   resources: int, turns_left: int) -> None:
+    def init_roles(self, your_units: Units):
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
             if unit.type == "worker":
                 self.roles.append([unit, "miner", 0])
-            else:
+            elif unit.type == "melee":
                 self.roles.append([unit, "bodyguard", None])
 
-    def get_unit_role(self, unit: Unit) -> str:
+    def set_role(self, unit: Unit, role: str):
         for i in self.roles:
-            if i[0] == unit:
+            if i[0].id == unit.id:
+                i[1] = role
+                return
+
+    def get_role(self, unit: Unit):
+        for i in self.roles:
+            if i[0].id == unit.id:
                 return i[1]
-        return ""
 
-    def set_unit_role(self, unit: Unit, new_role: str) -> None:
+    def set_data(self, unit: Unit, data):
         for i in self.roles:
-            if i[0] == unit:
-                i[1] = new_role
+            if i[0].id == unit.id:
+                i[2] = data
+                return
 
-    def get_role_data(self, unit: Unit):
+    def get_data(self, unit: Unit):
         for i in self.roles:
-            if i[0] == unit:
+            if i[0].id == unit.id:
                 return i[2]
 
-    def set_role_data(self, unit: Unit, new_data):
-        for i in self.roles:
-            if i[0] == unit:
-                i[2] = new_data
+    def claim_node(self, unit: Unit, game_map: Map):
 
-    def determine_role(self, unit: Unit, game_map: Map, your_units: Units,
-                       enemy_units: Units, resources: int, turns_left: int):
-        pass
+        closest_node = None
+        distance = 9999
+
+        for node in game_map.find_all_resources():
+            if node not in self.claimed_nodes.values():
+                new_distance = coordinate_distance(unit.position(), node,
+                                                   game_map)
+                if new_distance < distance:
+                    closest_node = node
+                    distance = new_distance
+
+        if closest_node is None:
+            return False
+        else:
+            self.claimed_nodes[unit.id] = closest_node
+            return True
 
     def remove_dead_units(self, your_units: Units):
-
-        to_remove = []
+        remove_roles = []
+        remove_claims = []
 
         for unit in self.roles:
             if unit[0].id not in your_units.get_all_unit_ids():
-                to_remove.append(unit)
+                remove_roles.append(unit)
+        for unit in self.claimed_nodes:
+            if unit not in your_units.get_all_unit_ids():
+                remove_claims.append(unit)
 
-        for unit in to_remove:
+        for unit in remove_roles:
             self.roles.remove(unit)
+        for unit in remove_claims:
+            del self.claimed_nodes[unit]
 
-    def miner(self, unit: Unit, game_map: Map, your_units: Units,
-              enemy_units: Units, resources: int, turns_left: int) -> \
+    def set_vip(self, unit: Unit, your_units: Units):
+        workers = your_units.get_all_unit_of_type("worker")
+        first_single = None
+
+        for worker in workers:
+            if self.get_data(worker) == 0:
+                self.set_data(worker, 1)
+                self.set_data(unit, worker)
+                return
+            elif self.get_data(worker) == 1 and first_single is None:
+                first_single = worker
+
+        if first_single is None:
+            return
+        self.set_data(first_single, 2)
+        self.set_data(unit, first_single)
+
+    def miner(self, unit: Unit, enemy_units: Units, game_map: Map) -> \
             Optional[Move]:
-
-        if len(unit.nearby_enemies_by_distance(enemy_units)) > 0:
-            closest = unit.nearby_enemies_by_distance(enemy_units)[0]
-        else:
-            closest = (None, 9999)
-
-        if closest[1] == 1:
+        closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map)
+        if distance == 1:
             # run away
-            enemy_unit = enemy_units.get_unit(closest[0])
-            direction = unit.direction_to(enemy_unit.position())
-            reverse = REVERSE_DIR[direction]
-            return unit.move(reverse)
-        elif closest[1] == 2:
+            direction_to = unit.direction_to(closest.position())
+            move = unit.move(opposite_direction(direction_to))
+            return move
+        elif distance == 2:
             # don't move
             return None
         else:
-            # move towards claimed resource node
-            # if this unit has not claimed a resource node, claim one
-            if unit not in claimed_nodes:
-                for resource in game_map.find_all_resources():
-                    if resource not in claimed_nodes.values():
-                        claimed_nodes[unit] = resource
-                for resource in game_map.find_all_resources():
-                    if resource not in claimed_nodes.values():
-                        claimed_nodes[unit] = resource
+            # move towards claimed node and mine from it
+            # if this unit doesn't have a claimed node, claim one
+            if unit.id not in self.claimed_nodes:
+                if not self.claim_node(unit, game_map):
+                    # node could not be claimed, switch to another role?
+                    # TODO
+                    return None
 
-            if unit.position() == claimed_nodes[unit]:
+            if self.claimed_nodes[unit.id] == unit.position():
                 return unit.mine()
             else:
-                end = claimed_nodes[unit]
-                return unit.move_towards(game_map.bfs(unit.position(), end)[0])
+                path = game_map.bfs(unit.position(),
+                                    self.claimed_nodes[unit.id])
+                return unit.move_towards(path[1])
 
-    def bodyguard(self, unit: Unit, game_map: Map, your_units: Units,
-                  enemy_units: Units, resources: int, turns_left: int) -> \
-            Optional[Move]:
 
-        unit_data = self.get_role_data(unit)
-        if len(unit.nearby_enemies_by_distance(enemy_units)) > 0:
-            closest = unit.nearby_enemies_by_distance(enemy_units)[0]
-        else:
-            closest = (None, 9999)
+def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (Unit, int):
+    closest = None
+    distance = 9999
 
-        if closest[1] == 1:
-            # attack the unit
-            enemy_unit = enemy_units.get_unit(closest[0])
-            direction = unit.direction_to(enemy_unit.position())
-            return unit.attack(direction)
-        # TODO: add this branch after grenadier and sprinter are done
-        # elif closest[1] == 2:
-        # if there is another melee at a distance of 2 to the enemy,
-        # one switches to grenadier and the other to sprinter
-        # otherwise, switch to guardian
-        elif closest[1] <= 4:
-            # switch role to guardian
-            self.set_unit_role(unit, "guardian")
-            return self.guardian(unit, game_map, your_units,
-                                 enemy_units, resources, turns_left)
-        else:
-            # move towards the friendly worker stored in this unit's data
-            # if the specified unit does not exist, switch to the closest
-            # friendly worker unit with less than 2 bodyguards
-            if unit_data and unit_data.id not in your_units.get_all_unit_ids():
-                for other_id in unit.nearby_enemies_by_distance(your_units):
-                    other_unit = your_units.get_unit(other_id[0])
-                    if other_unit.type == "worker":
-                        other_data = self.get_role_data(other_unit)
-                        if other_data < 2:
-                            self.set_role_data(unit, other_unit)
-                            self.set_role_data(other_unit, other_data + 1)
+    for enemy in enemy_units.get_all_unit_of_type("melee"):
+        new_distance = coordinate_distance(unit.position(), enemy.position(),
+                                           game_map)
+        if new_distance < distance:
+            closest = enemy
+            distance = new_distance
 
-            end = self.get_role_data(unit).position()
-            return unit.move_towards(game_map.bfs(unit.position(), end)[0])
+    return closest, distance
 
-    def grenadier(self, unit: Unit, game_map: Map, your_units: Units,
-                  enemy_units: Units, resources: int, turns_left: int) -> \
-            Optional[Move]:
-        pass
 
-    def sprinter(self, unit: Unit, game_map: Map, your_units: Units,
-                 enemy_units: Units, resources: int, turns_left: int) -> \
-            Optional[Move]:
-        pass
+def coordinate_distance(start: (int, int), end: (int, int), game_map):
+    return len(game_map.bfs(start, end))
 
-    def guardian(self, unit: Unit, game_map: Map, your_units: Units,
-                 enemy_units: Units, resources: int, turns_left: int) -> \
-            Optional[Move]:
 
-        unit_data = self.get_role_data(unit)
-        if len(unit.nearby_enemies_by_distance(enemy_units)) > 0:
-            closest = unit.nearby_enemies_by_distance(enemy_units)[0]
-        else:
-            closest = (None, 9999)
+def opposite_direction(direction: str) -> str:
+    opposite = {"UP": "DOWN", "DOWN": "UP", "RIGHT": "LEFT", "LEFT": "RIGHT"}
+    return opposite[direction]
 
-        if closest[1] == 1:
-            enemy_unit = enemy_units.get_unit(closest[0])
-            direction = unit.direction_to(enemy_unit.position())
-            return unit.attack(direction)
-        # TODO: add this branch after grenadier and sprinter are done
-        # elif closest[1] == 2:
-        # if there is another melee at a distance of 2 to the enemy,
-        # one switches to grenadier and the other to sprinter
-        # otherwise, switch to guardian
-        elif closest[1] <= 4:
-            enemy_id = unit.nearby_enemies_by_distance(enemy_units)[0]
-            enemy_unit = enemy_units.get_unit(enemy_id[0])
-            end = enemy_unit.position()
-            return unit.move_towards(game_map.bfs(unit.position(), end)[0])
-        else:
-            # switch role to bodyguard
-            self.set_unit_role(unit, "bodyguard")
-            return self.bodyguard(unit, game_map, your_units,
-                                  enemy_units, resources, turns_left)
+
+def move_towards(unit: Unit, end: (int, int), game_map: Map) -> Optional[Move]:
+    positions = game_map.bfs(unit.position(), end)
+    if positions is None:
+        return None
+    else:
+        direction = unit.direction_to(positions[1])
+        return unit.move(direction)
