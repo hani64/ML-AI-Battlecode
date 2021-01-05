@@ -6,7 +6,8 @@ claimed_nodes = {}
 
 
 class GridPlayer:
-    roles: List[List]
+
+    roles = []
 
     """
     This list contains one element for each friendly unit in play.
@@ -67,10 +68,16 @@ class GridPlayer:
 
             if role == "":
                 self.determine_role(unit, *game_data)
-                pass
 
-            role_method = getattr(GridPlayer, role, "choose_role")
-            move = role_method(*game_data)
+            move = None
+
+            if role == "miner":
+                move = self.miner(unit, *game_data)
+            elif role == "bodyguard":
+                move = self.bodyguard(unit, *game_data)
+            elif role == "guardian":
+                move = self.guardian(unit, *game_data)
+
             if move is not None:
                 moves.append(move)
 
@@ -78,7 +85,12 @@ class GridPlayer:
 
     def init_roles(self, game_map: Map, your_units: Units, enemy_units: Units,
                    resources: int, turns_left: int) -> None:
-        return
+        for unit_id in your_units.get_all_unit_ids():
+            unit = your_units.get_unit(unit_id)
+            if unit.type == "worker":
+                self.roles.append([unit, "miner", 0])
+            else:
+                self.roles.append([unit, "bodyguard", None])
 
     def get_unit_role(self, unit: Unit) -> str:
         for i in self.roles:
@@ -174,7 +186,7 @@ class GridPlayer:
             # move towards the friendly worker stored in this unit's data
             # if the specified unit does not exist, switch to the closest
             # friendly worker unit with less than 2 bodyguards
-            if unit_data not in your_units.get_all_unit_ids():
+            if unit_data.id not in your_units.get_all_unit_ids():
                 for other_id in unit.nearby_enemies_by_distance(your_units):
                     other_unit = your_units.get_unit(other_id[0])
                     if other_unit.type == "worker":
