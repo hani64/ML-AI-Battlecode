@@ -22,32 +22,20 @@ class GridPlayer:
             self.init_roles(your_units)
 
         moves = []
-        attacker_amount = len(your_units.get_all_unit_of_type(MELEE))
-        worker_amount = len(your_units.get_all_unit_of_type(WORKER))
-        print(attacker_amount, worker_amount, resources)
-        CLONE_MELEE = 0
-        if attacker_amount < worker_amount and resources >= MELEE_COST:
-            CLONE_MELEE = 1
 
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
             role = self.get_role(unit)
             data = self.get_data(unit)
-            
-            position = unit.position()
+
             if role == "miner":
-                if CLONE_MELEE and unit.can_duplicate(resources, WORKER):
-                    available_dir = self.available_direction(position, game_map)
-                    if (available_dir):
-                        moves.append(unit.duplicate(available_dir, MELEE))
-                    else:
-                        moves.append(self.miner(unit, enemy_units, game_map))
-                else:
-                    moves.append(self.miner(unit, enemy_units, game_map))
+                moves.append(self.miner(unit, enemy_units, game_map,
+                                        resources, turns_left))
             elif role == "bodyguard":
                 moves.append(self.bodyguard(unit, enemy_units, game_map))
-            elif role == "guardian":
-                moves.append(self.guardian())
+            elif role == "nurse":
+                moves.append(self.nurse(unit, enemy_units, game_map,
+                                        resources, turns_left))
 
         if not moves:
             return self.roles
@@ -55,13 +43,13 @@ class GridPlayer:
         return moves
 
     def available_direction(self, position, game_map):
-        if game_map.get_tile(position[0], position[1]-1) == ' ':
+        if game_map.get_tile(position[0], position[1]-1) in [' ', 'R']:
             return 'UP'
-        elif game_map.get_tile(position[0]-1, position[1]) == ' ':
+        elif game_map.get_tile(position[0]-1, position[1]) in [' ', 'R']:
             return 'LEFT'
-        elif game_map.get_tile(position[0]+1, position[1]) == ' ':
+        elif game_map.get_tile(position[0]+1, position[1]) in [' ', 'R']:
             return 'RIGHT'
-        elif game_map.get_tile(position[0], position[1]+1) == ' ':
+        elif game_map.get_tile(position[0], position[1]+1) in [' ', 'R']:
             return 'DOWN'
         return None
 
@@ -147,14 +135,47 @@ class GridPlayer:
         self.set_data(first_single, 2)
         self.set_data(unit, first_single)
 
-    def miner(self, unit: Unit, enemy_units: Units, game_map: Map) -> \
+    def num_role(self, role: str):
+        num = 0
+        for unit in self.roles:
+            if unit[1] == role:
+                num += 1
+        return num
+
+    def duplicate_type(self, game_map: Map):
+        num_nodes = len(game_map.find_all_resources())
+        num_miners = self.num_role("miner")
+        num_bodyguards = self.num_role("bodyguard")
+
+        if num_miners == 0:
+            return WORKER
+        elif num_bodyguards < num_miners:
+            return MELEE
+        elif num_miners < num_nodes:
+            return WORKER
+        else:
+            return None
+
+    def miner(self, unit: Unit, enemy_units: Units, game_map: Map,
+              resources: int, turns_left: int) -> \
             Optional[Move]:
+
         closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map)
         if distance == 1:
             # run away
-            direction_to = unit.direction_to(closest.position())
-            move = unit.move(opposite_direction(direction_to))
-            return move
+            available_dir = self.available_direction(unit.position(), game_map)
+            if available_dir is not None:
+                # path found
+                return unit.move(available_dir)
+            else:
+                # guess I'll die
+                return None
+        elif resources >= 225 and turns_left > 20 and \
+                self.num_role("nurse") == 0 and \
+                self.duplicate_type(game_map) is not None:
+            # become a nurse
+            self.set_role(unit, "nurse")
+            return self.nurse(unit, enemy_units, game_map, resources, turns_left)
         elif distance == 2:
             # don't move
             return None
@@ -173,6 +194,23 @@ class GridPlayer:
                 path = game_map.bfs(unit.position(),
                                     self.claimed_nodes[unit.id])
                 return unit.move_towards(path[1])
+
+    def nurse(self, unit: Unit, enemy_units: Units, game_map: Map,
+              resources: int, turns_left: int):
+
+        duplicate_type = self.duplicate_type(game_map)
+        if duplicate_type is None:
+            self.set_role(unit, "miner")
+            return self.miner(unit, enemy_units, game_map,
+                              resources, turns_left)
+
+        direction = self.available_direction(unit.position(), game_map)
+
+        if unit.can_duplicate(resources, duplicate_type) and \
+                direction is not None:
+            return unit.duplicate(direction, duplicate_type)
+        else:
+            return None
 
     def bodyguard(self, unit, enemy_units, game_map):
         # For now we'll check to see if neighbor has enemy so we can kill it
