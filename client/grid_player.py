@@ -14,6 +14,7 @@ class GridPlayer:
         self.roles = []
         self.claimed_nodes = {}
 
+
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
 
@@ -25,7 +26,8 @@ class GridPlayer:
         moves = []
         attacker_amount = len(your_units.get_all_unit_of_type(MELEE))
         worker_amount = len(your_units.get_all_unit_of_type(WORKER))
-        print(attacker_amount, worker_amount, resources)
+        print(f"---------------------\nRound: {200-turns_left}\n# of Attacker: {attacker_amount}\n"
+                f"# of Worker: {worker_amount}\n# of Resources: {resources}", flush=True)
         CLONE_MELEE = 0
         # For now single unit
         if attacker_amount < worker_amount and resources >= MELEE_COST:
@@ -37,7 +39,7 @@ class GridPlayer:
             if not role:
                 self.init_single_role(unit)
                 role = self.get_role(unit)
-                
+
             data = self.get_data(unit)
             
             position = unit.position()
@@ -58,7 +60,7 @@ class GridPlayer:
         if not moves:
             return self.roles
 
-        return moves
+        return [move for move in moves if move]
 
     def available_direction(self, position, game_map):
         if game_map.get_tile(position[0], position[1]-1) == ' ':
@@ -189,7 +191,7 @@ class GridPlayer:
     def bodyguard(self, unit, enemy_units, game_map):
         # For now we'll check to see if neighbor has enemy so we can kill it
         # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
-        to_attack = self.can_attack(enemy_units)
+        to_attack = unit.can_attack(enemy_units)
         
         if to_attack:
             return unit.attack(to_attack[0][1])
