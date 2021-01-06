@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict
 from helper_classes import *
+import math
 
 MELEE = 'melee'
 WORKER = 'worker'
@@ -7,11 +8,11 @@ WORKER_COST = 50
 MELEE_COST = 100
 
 class GridPlayer:
-    roles = []
-    claimed_nodes = {}
+    
 
     def __init__(self):
-        self.foo = True
+        self.roles = []
+        self.claimed_nodes = {}
 
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
@@ -26,17 +27,23 @@ class GridPlayer:
         worker_amount = len(your_units.get_all_unit_of_type(WORKER))
         print(attacker_amount, worker_amount, resources)
         CLONE_MELEE = 0
+        # For now single unit
         if attacker_amount < worker_amount and resources >= MELEE_COST:
             CLONE_MELEE = 1
 
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
             role = self.get_role(unit)
+            if not role:
+                self.init_single_role(unit)
+                role = self.get_role(unit)
+
+            print(role + "role")
             data = self.get_data(unit)
             
             position = unit.position()
             if role == "miner":
-                if CLONE_MELEE and unit.can_duplicate(resources, WORKER):
+                if CLONE_MELEE and unit.can_duplicate(resources, MELEE):
                     available_dir = self.available_direction(position, game_map)
                     if (available_dir):
                         moves.append(unit.duplicate(available_dir, MELEE))
@@ -72,6 +79,12 @@ class GridPlayer:
                 self.roles.append([unit, "miner", 0])
             elif unit.type == "melee":
                 self.roles.append([unit, "bodyguard", None])
+    
+    def init_single_role(self, unit: Unit):
+        if unit.type == "worker":
+            self.roles.append([unit, "miner", 0])
+        elif unit.type == "melee":
+            self.roles.append([unit, "bodyguard", None])
 
     def set_role(self, unit: Unit, role: str):
         for i in self.roles:
@@ -177,7 +190,13 @@ class GridPlayer:
     def bodyguard(self, unit, enemy_units, game_map):
         # For now we'll check to see if neighbor has enemy so we can kill it
         # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
-        pass
+        to_attack = self.can_attack(enemy_units)
+        
+        if to_attack:
+            return unit.attack(to_attack[0][1])
+        return None
+            
+        
 
 def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (Unit, int):
     closest = None
