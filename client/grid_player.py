@@ -142,7 +142,11 @@ class GridPlayer:
                 num += 1
         return num
 
-    def duplicate_type(self, game_map: Map):
+    def duplicate_type(self, game_map: Map, resources: int, turns_left: int):
+
+        if not (resources >= 225 and turns_left > 20):
+            return None
+
         num_nodes = len(game_map.find_all_resources())
         num_miners = self.num_role("miner")
         num_bodyguards = self.num_role("bodyguard")
@@ -172,7 +176,7 @@ class GridPlayer:
                 return None
         elif resources >= 225 and turns_left > 20 and \
                 self.num_role("nurse") == 0 and \
-                self.duplicate_type(game_map) is not None:
+                self.duplicate_type(game_map, resources, turns_left) is not None:
             # become a nurse
             self.set_role(unit, "nurse")
             return self.nurse(unit, enemy_units, game_map, resources, turns_left)
@@ -198,7 +202,7 @@ class GridPlayer:
     def nurse(self, unit: Unit, enemy_units: Units, game_map: Map,
               resources: int, turns_left: int):
 
-        duplicate_type = self.duplicate_type(game_map)
+        duplicate_type = self.duplicate_type(game_map, resources, turns_left)
         if duplicate_type is None:
             self.set_role(unit, "miner")
             return self.miner(unit, enemy_units, game_map,
