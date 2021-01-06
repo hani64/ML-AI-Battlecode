@@ -37,19 +37,11 @@ class GridPlayer:
             position = unit.position()
             if role == "miner":
                 if CLONE_MELEE and unit.can_duplicate(resources, WORKER):
-                    if game_map.get_tile(position[0], position[1]-1) == ' ':
-                        
-                        moves.append(unit.duplicate(f'UP', MELEE))
-
-                    elif game_map.get_tile(position[0]-1, position[1]) == ' ':
-                        
-                        moves.append(unit.duplicate(f'LEFT', MELEE))
-                    elif game_map.get_tile(position[0]+1, position[1]) == ' ':
-
-                        moves.append(unit.duplicate(f'RIGHT', MELEE))
-                    elif game_map.get_tile(position[0], position[1]+1) == ' ':
-
-                        moves.append(unit.duplicate(f'DOWN', MELEE))
+                    available_dir = self.available_direction(position, game_map)
+                    if (available_dir):
+                        moves.append(unit.duplicate(available_dir, MELEE))
+                    else:
+                        moves.append(self.miner(unit, enemy_units, game_map))
                 else:
                     moves.append(self.miner(unit, enemy_units, game_map))
             elif role == "bodyguard":
@@ -61,6 +53,17 @@ class GridPlayer:
             return self.roles
 
         return moves
+
+    def available_direction(self, position, game_map):
+        if game_map.get_tile(position[0], position[1]-1) == ' ':
+            return 'UP'
+        elif game_map.get_tile(position[0]-1, position[1]) == ' ':
+            return 'LEFT'
+        elif game_map.get_tile(position[0]+1, position[1]) == ' ':
+            return 'RIGHT'
+        elif game_map.get_tile(position[0], position[1]+1) == ' ':
+            return 'DOWN'
+        return None
 
     def init_roles(self, your_units: Units):
         for unit_id in your_units.get_all_unit_ids():
