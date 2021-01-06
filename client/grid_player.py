@@ -1,6 +1,10 @@
 from typing import List, Optional, Dict
 from helper_classes import *
 
+MELEE = 'melee'
+WORKER = 'worker'
+WORKER_COST = 50
+MELEE_COST = 100
 
 class GridPlayer:
     roles = []
@@ -12,22 +16,42 @@ class GridPlayer:
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
 
-        print("test")
-
         # self.remove_dead_units(your_units)
 
         if not self.roles:
             self.init_roles(your_units)
 
         moves = []
+        attacker_amount = len(your_units.get_all_unit_of_type(MELEE))
+        worker_amount = len(your_units.get_all_unit_of_type(WORKER))
+        print(attacker_amount, worker_amount, resources)
+        CLONE_MELEE = 0
+        if attacker_amount < worker_amount and resources >= MELEE_COST:
+            CLONE_MELEE = 1
 
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
             role = self.get_role(unit)
             data = self.get_data(unit)
-
+            
+            position = unit.position()
             if role == "miner":
-                moves.append(self.miner(unit, enemy_units, game_map))
+                if CLONE_MELEE and unit.can_duplicate(resources, WORKER):
+                    if game_map.get_tile(position[0], position[1]-1) == ' ':
+                        
+                        moves.append(unit.duplicate(f'UP', MELEE))
+
+                    elif game_map.get_tile(position[0]-1, position[1]) == ' ':
+                        
+                        moves.append(unit.duplicate(f'LEFT', MELEE))
+                    elif game_map.get_tile(position[0]+1, position[1]) == ' ':
+
+                        moves.append(unit.duplicate(f'RIGHT', MELEE))
+                    elif game_map.get_tile(position[0], position[1]+1) == ' ':
+
+                        moves.append(unit.duplicate(f'DOWN', MELEE))
+                else:
+                    moves.append(self.miner(unit, enemy_units, game_map))
             elif role == "bodyguard":
                 moves.append(self.bodyguard())
             elif role == "guardian":
