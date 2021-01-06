@@ -7,13 +7,13 @@ WORKER = 'worker'
 WORKER_COST = 50
 MELEE_COST = 100
 
+
 class GridPlayer:
-    
 
     def __init__(self):
         self.roles = []
         self.claimed_nodes = {}
-
+        self.dup_queue = []
 
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
@@ -26,9 +26,11 @@ class GridPlayer:
         moves = []
         attacker_amount = len(your_units.get_all_unit_of_type(MELEE))
         worker_amount = len(your_units.get_all_unit_of_type(WORKER))
-        print(f"---------------------\nRound: {200-turns_left}\n# of Attacker: {attacker_amount}\n"
-                f"# of Worker: {worker_amount}\n# of Resources: {resources}", flush=True)
-        
+
+        print(
+            f"---------------------\nRound: {200 - turns_left}\n# of Attacker: {attacker_amount}\n"
+            f"# of Worker: {worker_amount}\n# of Resources: {resources}",
+            flush=True)
 
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
@@ -37,8 +39,11 @@ class GridPlayer:
                 self.init_single_role(unit)
                 role = self.get_role(unit)
 
+                if role in self.dup_queue:
+                    self.dup_queue.remove(role)
+
             # data = self.get_data(unit)
-            
+
             if role == "miner":
                 moves.append(self.miner(unit, enemy_units, game_map, resources))
             elif role == "bodyguard":
@@ -52,13 +57,13 @@ class GridPlayer:
         return [move for move in moves if move]
 
     def available_direction(self, position, game_map):
-        if game_map.get_tile(position[0], position[1]-1) == ' ':
+        if game_map.get_tile(position[0], position[1] - 1) == ' ':
             return 'UP'
-        elif game_map.get_tile(position[0]-1, position[1]) == ' ':
+        elif game_map.get_tile(position[0] - 1, position[1]) == ' ':
             return 'LEFT'
-        elif game_map.get_tile(position[0]+1, position[1]) == ' ':
+        elif game_map.get_tile(position[0] + 1, position[1]) == ' ':
             return 'RIGHT'
-        elif game_map.get_tile(position[0], position[1]+1) == ' ':
+        elif game_map.get_tile(position[0], position[1] + 1) == ' ':
             return 'DOWN'
         return None
 
@@ -69,7 +74,7 @@ class GridPlayer:
                 self.roles.append([unit, "miner", 0])
             elif unit.type == "melee":
                 self.roles.append([unit, "bodyguard", None])
-    
+
     def init_single_role(self, unit: Unit):
         if unit.type == "worker":
             self.roles.append([unit, "miner", 0])
@@ -159,10 +164,11 @@ class GridPlayer:
 
     def dup_type(self, game_map, resources):
         num_nodes = len(game_map.find_all_resources())
-        num_miners = self.num_role("miner")
-        num_bodyguards = self.num_role("bodyguard")
+        num_miners = self.num_role("miner") + \
+                     self.dup_queue.count("miner")
+        num_bodyguards = self.num_role("bodyguard") + \
+                         self.dup_queue.count("bodyguard")
 
-        
         if num_bodyguards < num_miners and resources >= MELEE_COST:
             return MELEE
         elif num_miners < num_nodes and resources >= WORKER_COST:
@@ -171,6 +177,9 @@ class GridPlayer:
 
     def miner(self, unit: Unit, enemy_units: Units, game_map: Map, resources) -> \
             Optional[Move]:
+        if unit.attr['mining_status'] > 0:
+            return None
+
         CLONE = self.dup_type(game_map, resources)
         # For now single unit
 
@@ -187,6 +196,7 @@ class GridPlayer:
         elif CLONE and unit.can_duplicate(resources, CLONE):
             available_dir = self.available_direction(unit.position(), game_map)
             if (available_dir):
+                self.dup_queue.append(CLONE)
                 return unit.duplicate(available_dir, CLONE)
         else:
             # move towards claimed node and mine from it
@@ -208,14 +218,13 @@ class GridPlayer:
         # For now we'll check to see if neighbor has enemy so we can kill it
         # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
         to_attack = unit.can_attack(enemy_units)
-        
         if to_attack:
             return unit.attack(to_attack[0][1])
         return None
-            
-        
 
-def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (Unit, int):
+
+def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (
+        Unit, int):
     closest = None
     distance = 9999
 
@@ -230,7 +239,10 @@ def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (U
 
 
 def coordinate_distance(start: (int, int), end: (int, int), game_map):
-    return len(game_map.bfs(start, end))
+    path = game_map.bfs(start, end)
+    if path is None:
+        return 0
+    return len(path)
 
 
 def opposite_direction(direction: str) -> str:
