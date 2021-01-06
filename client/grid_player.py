@@ -37,8 +37,7 @@ class GridPlayer:
             if not role:
                 self.init_single_role(unit)
                 role = self.get_role(unit)
-
-            print(role + "role")
+                
             data = self.get_data(unit)
             
             position = unit.position()
