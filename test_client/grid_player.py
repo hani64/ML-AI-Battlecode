@@ -45,7 +45,7 @@ class GridPlayer:
                 else:
                     moves.append(self.miner(unit, enemy_units, game_map))
             elif role == "bodyguard":
-                moves.append(self.bodyguard())
+                moves.append(self.bodyguard(unit, enemy_units, game_map))
             elif role == "guardian":
                 moves.append(self.guardian())
 
@@ -174,6 +174,10 @@ class GridPlayer:
                                     self.claimed_nodes[unit.id])
                 return unit.move_towards(path[1])
 
+    def bodyguard(self, unit, enemy_units, game_map):
+        # For now we'll check to see if neighbor has enemy so we can kill it
+        # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
+        pass
 
 def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (Unit, int):
     closest = None
