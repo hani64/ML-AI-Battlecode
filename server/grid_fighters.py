@@ -60,7 +60,7 @@ class GridFighters():
         unit.id = self.next_id
         player[str(self.next_id)] = unit
         self.next_id += 1
-
+    
         self.all_units['{},{}'.format(unit.x, unit.y)] = unit
 
     def move_unit(self, x, y, unit):
@@ -103,6 +103,7 @@ class GridFighters():
         #Checks if the arguments for each move is valid
         if isinstance(v, GroundMove) and (not v.valid_path(self.grid, self.all_units, x, y) or v.len() < 0 or v.len() > 1):
             print('ERROR: Invalid path for unit {}'.format(k))
+            print(f'({x}, {y})')
             return False
         elif isinstance(v, AttackMove) and (self.get_matching_unit(x, y, v) is None or v.len() < 0 or v.len() > 1):
             print('ERROR: Unit {} cannot attack there'.format(k))
@@ -189,7 +190,7 @@ class GridFighters():
         x = unit.x
         y = unit.y
         x, y = Move.transform(x, y, dir)
-        if isinstance(self.grid[y][x], GroundTile):
+        if isinstance(self.grid[y][x], GroundTile) and not '{},{}'.format(x,y) in self.all_units:
             return True
 
         return False
