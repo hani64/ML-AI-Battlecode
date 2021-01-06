@@ -14,6 +14,7 @@ class GridPlayer:
         self.roles = []
         self.claimed_nodes = {}
         self.dup_queue = []
+        self.guardian_to_miner = {}  # dict that maps guardian unit to miner unit 1:1
 
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
@@ -214,12 +215,31 @@ class GridPlayer:
                                     self.claimed_nodes[unit.id])
                 return unit.move_towards(path[1])
 
-    def bodyguard(self, unit, enemy_units):
-        # For now we'll check to see if neighbor has enemy so we can kill it
-        # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
-        to_attack = unit.can_attack(enemy_units)
-        if to_attack:
-            return unit.attack(to_attack[0][1])
+    def guardian(self, unit: Unit, enemy_units: Units, game_map: Map) -> Optional[Move]:
+        # get list of all units that are currently mining
+        # curr_miners = [unit for unit in self.roles if unit[1] == "miner"]
+        # if there is a miner not being guarded
+        # if unit in curr_miners and unit not in self.curr_guarded_units:
+
+        closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map)
+        # if a unit is close kill him
+        if distance == 1:
+            return unit.attack(unit.direction_to(closest.position()))
+        # move towards the linked miner unit when more than one block away
+        elif coordinate_distance(unit.position(), self.guardian_to_miner[unit].position()) > 3:
+            miner_position = miner_position_y = self.guardian_to_miner[unit].position()
+            return unit.move_towards(game_map.bfs(unit.position(), miner_position)[1])
+        # move around the linked miner unit when less than one block away and it is mining
+        elif self.guardian_to_miner[unit].can_mine(game_map) and self.guardian_to_miner[unit].position() < 3:
+            miner_position_x, miner_position_y = self.guardian_to_miner[unit].position()
+            available_adjacent_spaces = [(miner_position_x + x, miner_position_y + y) for x in range(-1, 2) for y in
+                                         range(-1, 2) if not game_map.is_wall(miner_position_x + x,
+                                                                              miner_position_y + y)]
+            available_adjacent_spaces.remove(self.guardian_to_miner[unit].position())
+
+            if unit.position in available_adjacent_spaces:
+                return unit.move_towards(game_map.bfs(unit.position(), available_adjacent_spaces
+                [(available_adjacent_spaces.index(unit.position) + 1) % len(available_adjacent_spaces)])[1])
         return None
 
 
