@@ -28,13 +28,6 @@ class GridPlayer:
             self.init_roles(your_units)
 
         moves = []
-        attacker_amount = len(your_units.get_all_unit_of_type(MELEE))
-        worker_amount = len(your_units.get_all_unit_of_type(WORKER))
-
-        print(
-            f"---------------------\nRound: {200 - turns_left}\n# of Attacker: {attacker_amount}\n"
-            f"# of Worker: {worker_amount}\n# of Resources: {resources}",
-            flush=True)
 
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
@@ -46,11 +39,12 @@ class GridPlayer:
             # data = self.get_data(unit)
 
             if role == "miner":
-                moves.append(self.miner(unit, your_units, enemy_units, game_map, resources))
+                moves.append(self.miner(unit, your_units, enemy_units, game_map,
+                                        resources))
             elif role == "bodyguard":
                 moves.append(self.bodyguard(unit, enemy_units))
-            elif role == "guardian":
-                moves.append(self.guardian())
+            # elif role == "guardian":
+            # moves.append(self.guardian())
 
         if not moves:
             return self.roles
@@ -68,20 +62,15 @@ class GridPlayer:
         for item in to_remove:
             self.dup_queue.remove(item)
 
-    def available_direction(self, position, game_map: Map, your_units: Units):
+    def available_direction(self, position, game_map: Map, your_units: Units,
+                            enemy_units: Units):
         for direction in ["UP", "LEFT", "DOWN", "RIGHT"]:
             new_pos = coordinate_from_direction(position[0], position[1],
                                                 direction)
             if game_map.get_tile(new_pos[0], new_pos[1]) in [' ', 'R'] and \
-                    not self.unit_on_tile(new_pos, game_map, your_units):
+                    not unit_on_tile(new_pos, your_units, enemy_units):
                 return direction
         return None
-
-    def unit_on_tile(self, position, game_map, your_units):
-        for unit_id in your_units.get_all_unit_ids():
-            if your_units.get_unit(unit_id).position() == position:
-                return True
-        return False
 
     def init_roles(self, your_units: Units):
         for unit_id in your_units.get_all_unit_ids():
@@ -119,7 +108,7 @@ class GridPlayer:
             if i[0].id == unit.id:
                 return i[2]
 
-    def claim_node(self, unit: Unit, game_map: Map):
+    def claim_node(self, unit: Unit, game_map: Map, your_units, enemy_units):
 
         closest_node = None
         distance = 9999
@@ -127,7 +116,8 @@ class GridPlayer:
         for node in game_map.find_all_resources():
             if node not in self.claimed_nodes.values():
                 new_distance = coordinate_distance(unit.position(), node,
-                                                   game_map)
+                                                   game_map, your_units,
+                                                   enemy_units)
                 if new_distance < distance:
                     closest_node = node
                     distance = new_distance
@@ -179,13 +169,13 @@ class GridPlayer:
         return num
 
     def dup_type(self, game_map, resources):
-        num_nodes = len(game_map.find_all_resources())
-        num_miners = self.num_role("miner") + \
-                     self.dup_queue.count("miner")
-        num_bodyguards = self.num_role("bodyguard") + \
-                         self.dup_queue.count("bodyguard")
 
-        if num_bodyguards < num_miners and \
+        num_nodes = len(game_map.find_all_resources())
+        num_miners = self.num_role("miner") + self.dup_queue.count("miner")
+        num_bodyguards = self.num_role("bodyguard") + self.dup_queue.count(
+            "bodyguard")
+
+        """if num_bodyguards < num_miners and \
                 resources - self.used_resources >= MELEE_COST:
             self.used_resources += MELEE_COST
             return MELEE
@@ -193,17 +183,23 @@ class GridPlayer:
                 resources - self.used_resources >= WORKER_COST:
             self.used_resources += WORKER_COST
             return WORKER
-        return None
+        return None"""
+
+        if num_miners < num_nodes and \
+                resources - self.used_resources >= WORKER_COST:
+            self.used_resources += WORKER_COST
+            return WORKER
 
     def miner(self, unit: Unit, your_units: Units, enemy_units: Units,
-              game_map: Map, resources) -> Optional[Move]:
+              game_map: Map, resources: int) -> Optional[Move]:
         if unit.attr['mining_status'] > 0:
             return None
 
-        CLONE = self.dup_type(game_map, resources)
+        dup_type = self.dup_type(game_map, resources)
         # For now single unit
 
-        closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map)
+        closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map,
+                                                    your_units)
         if distance == 1:
             # run away
             direction_to = unit.direction_to(closest.position())
@@ -212,45 +208,51 @@ class GridPlayer:
         elif distance == 2:
             # don't move
             return None
-        # If condition satisfies and we want to clone
-        elif CLONE and unit.can_duplicate(resources, CLONE):
-            available_dir = self.available_direction(unit.position(), game_map,
-                                                     your_units)
-            if available_dir:
-                self.dup_queue.append([CLONE, 4])
-                return unit.duplicate(available_dir, CLONE)
         # move towards claimed node and mine from it
         # if this unit doesn't have a claimed node, claim one
-        if unit.id not in self.claimed_nodes:
-            if not self.claim_node(unit, game_map):
+        elif unit.id not in self.claimed_nodes:
+            if not self.claim_node(unit, game_map, your_units, enemy_units):
                 # node could not be claimed, switch to another role?
                 # TODO
                 return None
 
         if self.claimed_nodes[unit.id] == unit.position():
+            # Already on resource
+            # If condition satisfies and we want to clone
+            if dup_type and unit.can_duplicate(resources, dup_type):
+                available_dir = self.available_direction(unit.position(),
+                                                         game_map, your_units,
+                                                         enemy_units)
+                if available_dir:
+                    self.dup_queue.append([dup_type, 4])
+                    return unit.duplicate(available_dir, dup_type)
             return unit.mine()
         else:
-            path = game_map.bfs(unit.position(),
-                                self.claimed_nodes[unit.id])
-            return unit.move_towards(path[1])
+            path = better_bfs(game_map, unit.position(),
+                              self.claimed_nodes[unit.id], your_units,
+                              enemy_units)
+            if path is not None:
+                return unit.move_towards(path[1])
+            return None
 
     def bodyguard(self, unit, enemy_units):
         # For now we'll check to see if neighbor has enemy so we can kill it
-        # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
+        # Later we'll want to add it so we move a few blocks to get advantage
+        # to kill the enemy
         to_attack = unit.can_attack(enemy_units)
         if to_attack:
             return unit.attack(to_attack[0][1])
         return None
 
 
-def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (
-        Unit, int):
+def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map,
+                            your_units: Units) -> (Unit, int):
     closest = None
     distance = 9999
 
     for enemy in enemy_units.get_all_unit_of_type("melee"):
         new_distance = coordinate_distance(unit.position(), enemy.position(),
-                                           game_map)
+                                           game_map, your_units, enemy_units)
         if new_distance < distance:
             closest = enemy
             distance = new_distance
@@ -258,8 +260,9 @@ def get_closest_enemy_melee(unit: Unit, enemy_units: Units, game_map: Map) -> (
     return closest, distance
 
 
-def coordinate_distance(start: (int, int), end: (int, int), game_map):
-    path = game_map.bfs(start, end)
+def coordinate_distance(start: (int, int), end: (int, int), game_map: Map,
+                        your_units: Units, enemy_units: Units):
+    path = better_bfs(game_map, start, end, your_units, enemy_units)
     if path is None:
         return 0
     return len(path)
@@ -270,11 +273,42 @@ def opposite_direction(direction: str) -> str:
     return opposite[direction]
 
 
-def move_towards(unit: Unit, end: (int, int), game_map: Map) -> Optional[Move]:
-    positions = game_map.bfs(unit.position(), end)
-    if positions is None:
+def better_bfs(game_map: Map, start: (int, int), dest: (int, int),
+               your_units: Units, enemy_units: Units) -> [(int, int)]:
+    """(Map, (int, int), (int, int)) -> [(int, int)]
+    Finds the shortest path from <start> to <dest>.
+    Returns a path with a list of coordinates starting with
+    <start> to <dest>.
+    """
+    graph = game_map.grid
+    queue = [[start]]
+    vis = set(start)
+    if start == dest or graph[start[1]][start[0]] == 'X' or \
+            not (0 < start[0] < len(graph[0]) - 1
+                 and 0 < start[1] < len(graph) - 1):
         return None
-    else:
-        direction = unit.direction_to(positions[1])
-        return unit.move(direction)
 
+    while queue:
+        path = queue.pop(0)
+        node = path[-1]
+        r = node[1]
+        c = node[0]
+
+        if node == dest:
+            return path
+        for adj in ((c + 1, r), (c - 1, r), (c, r + 1), (c, r - 1)):
+            if (graph[adj[1]][adj[0]] == ' ' or graph[adj[1]][adj[0]] == 'R') \
+                    and (adj not in vis) \
+                    and (not unit_on_tile(adj, your_units, enemy_units)):
+                queue.append(path + [adj])
+                vis.add(adj)
+
+
+def unit_on_tile(position, your_units, enemy_units):
+    for unit_id in your_units.get_all_unit_ids():
+        if your_units.get_unit(unit_id).position() == position:
+            return True
+    for unit_id in enemy_units.get_all_unit_ids():
+        if enemy_units.get_unit(unit_id).position() == position:
+            return True
+    return False
