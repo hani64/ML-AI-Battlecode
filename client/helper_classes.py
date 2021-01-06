@@ -88,7 +88,7 @@ class Unit:
 
     def can_stun(self, enemy_units: 'Units') -> ['Unit', [str]]:
         """
-        Returns a list of enemy Units that can be stunned and 
+        Returns a list of enemy Units that can be stunned and
         the direction needed to attack them.
         """
         enemies = []

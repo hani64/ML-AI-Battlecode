@@ -41,7 +41,7 @@ class GridFighters():
                  for x in range(len(lines[y]))]
                 for y in range(len(lines))]
 
-    #create_tile_or_unit pareses each give tilecode and returns the corrisponding Tile object 
+    #create_tile_or_unit pareses each give tilecode and returns the corrisponding Tile object
     def create_tile_or_unit(self, tile_code, player, x, y, base_y):
         if tile_code.lower() == 'x':
             return WallTile()
@@ -118,6 +118,8 @@ class GridFighters():
         elif isinstance(v, StasisMove) and (not player_state[k].can_duplicate(player_resources, v.unit_type)
                                             or not v.free_spot(x, y, self.all_units, self.grid)):
             print('ERROR: Unit {} cannot duplicate now'.format(k))
+            print('Spot available: ' + str(v.free_spot(x, y, self.all_units, self.grid)))
+            print('Direction: ' + v.direction)
             return False
         elif isinstance(v, MineMove) and (not player_state[k].can_mine() or not self.is_mining_resource(x, y)):
             print('ERROR: Unit {} cannot mine now'.format(k))
