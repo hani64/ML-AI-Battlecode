@@ -183,7 +183,7 @@ class GridPlayer:
             # don't move
             return None
         # If condition satisfies and we want to clone
-        elif CLONE and unit.can_duplicate(resources, CLONE):
+        elif unit.attr['mining_status'] == 0 and CLONE and unit.can_duplicate(resources, CLONE):
             available_dir = self.available_direction(unit.position(), game_map)
             if (available_dir):
                 return unit.duplicate(available_dir, CLONE)

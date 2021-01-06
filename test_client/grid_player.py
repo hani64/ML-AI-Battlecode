@@ -1,3 +1,4 @@
+from os import remove
 from typing import List, Optional, Dict
 from helper_classes import *
 import math
@@ -18,7 +19,7 @@ class GridPlayer:
     def tick(self, game_map: Map, your_units: Units, enemy_units: Units,
              resources: int, turns_left: int) -> [Move]:
 
-        # self.remove_dead_units(your_units)
+        self.remove_dead_units(your_units)
 
         if not self.roles:
             self.init_roles(your_units)
@@ -118,20 +119,18 @@ class GridPlayer:
             return True
 
     def remove_dead_units(self, your_units: Units):
-        remove_roles = []
         remove_claims = []
-
-        for unit in self.roles:
-            if unit[0].id not in your_units.get_all_unit_ids():
-                remove_roles.append(unit)
-        for unit in self.claimed_nodes:
-            if unit not in your_units.get_all_unit_ids():
-                remove_claims.append(unit)
-
-        for unit in remove_roles:
-            self.roles.remove(unit)
+        old_roles = self.roles[:]
+        self.roles = []
+        current_unit = your_units.get_all_unit_ids()
+        for i in old_roles:
+            if i[0] in current_unit:
+                self.roles.append(i)
+            else:
+                remove_claims.append(i[0])
+        
         for unit in remove_claims:
-            del self.claimed_nodes[unit]
+            self.claimed_nodes.pop(unit, None)
 
     def set_vip(self, unit: Unit, your_units: Units):
         workers = your_units.get_all_unit_of_type("worker")
@@ -184,7 +183,7 @@ class GridPlayer:
             # don't move
             return None
         # If condition satisfies and we want to clone
-        elif CLONE and unit.can_duplicate(resources, CLONE):
+        elif unit.attr['mining_status'] == 0 and CLONE and unit.can_duplicate(resources, CLONE):
             available_dir = self.available_direction(unit.position(), game_map)
             if (available_dir):
                 return unit.duplicate(available_dir, CLONE)
