@@ -28,10 +28,7 @@ class GridPlayer:
         worker_amount = len(your_units.get_all_unit_of_type(WORKER))
         print(f"---------------------\nRound: {200-turns_left}\n# of Attacker: {attacker_amount}\n"
                 f"# of Worker: {worker_amount}\n# of Resources: {resources}", flush=True)
-        CLONE_MELEE = 0
-        # For now single unit
-        if attacker_amount < worker_amount and resources >= MELEE_COST:
-            CLONE_MELEE = 1
+        
 
         for unit_id in your_units.get_all_unit_ids():
             unit = your_units.get_unit(unit_id)
@@ -40,20 +37,12 @@ class GridPlayer:
                 self.init_single_role(unit)
                 role = self.get_role(unit)
 
-            data = self.get_data(unit)
+            # data = self.get_data(unit)
             
-            position = unit.position()
             if role == "miner":
-                if CLONE_MELEE and unit.can_duplicate(resources, MELEE):
-                    available_dir = self.available_direction(position, game_map)
-                    if (available_dir):
-                        moves.append(unit.duplicate(available_dir, MELEE))
-                    else:
-                        moves.append(self.miner(unit, enemy_units, game_map))
-                else:
-                    moves.append(self.miner(unit, enemy_units, game_map))
+                moves.append(self.miner(unit, enemy_units, game_map, resources))
             elif role == "bodyguard":
-                moves.append(self.bodyguard(unit, enemy_units, game_map))
+                moves.append(self.bodyguard(unit, enemy_units))
             elif role == "guardian":
                 moves.append(self.guardian())
 
@@ -161,8 +150,30 @@ class GridPlayer:
         self.set_data(first_single, 2)
         self.set_data(unit, first_single)
 
-    def miner(self, unit: Unit, enemy_units: Units, game_map: Map) -> \
+    def num_role(self, role: str):
+        num = 0
+        for unit in self.roles:
+            if unit[1] == role:
+                num += 1
+        return num
+
+    def dup_type(self, game_map, resources):
+        num_nodes = len(game_map.find_all_resources())
+        num_miners = self.num_role("miner")
+        num_bodyguards = self.num_role("bodyguard")
+
+        
+        if num_bodyguards < num_miners and resources >= MELEE_COST:
+            return MELEE
+        elif num_miners < num_nodes and resources >= WORKER_COST:
+            return WORKER
+        return None
+
+    def miner(self, unit: Unit, enemy_units: Units, game_map: Map, resources) -> \
             Optional[Move]:
+        CLONE = self.dup_type(game_map, resources)
+        # For now single unit
+
         closest, distance = get_closest_enemy_melee(unit, enemy_units, game_map)
         if distance == 1:
             # run away
@@ -172,6 +183,11 @@ class GridPlayer:
         elif distance == 2:
             # don't move
             return None
+        # If condition satisfies and we want to clone
+        elif CLONE and unit.can_duplicate(resources, CLONE):
+            available_dir = self.available_direction(unit.position(), game_map)
+            if (available_dir):
+                return unit.duplicate(available_dir, CLONE)
         else:
             # move towards claimed node and mine from it
             # if this unit doesn't have a claimed node, claim one
@@ -188,7 +204,7 @@ class GridPlayer:
                                     self.claimed_nodes[unit.id])
                 return unit.move_towards(path[1])
 
-    def bodyguard(self, unit, enemy_units, game_map):
+    def bodyguard(self, unit, enemy_units):
         # For now we'll check to see if neighbor has enemy so we can kill it
         # Later we'll want to add it so we move a few blocks to get advantage to kill the enemy
         to_attack = unit.can_attack(enemy_units)
